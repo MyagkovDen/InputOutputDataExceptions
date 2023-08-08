@@ -1,23 +1,15 @@
 package homework3;
 
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.time.LocalDate;
-import java.util.Date;
-import java.util.Scanner;
+import java.util.*;
 
 public class GetInputApplication {
     public static void main(String[] args) {
         getInputDataFromUser();
-//        String s = "08.08.2023";
-//        LocalDate date = null;
-//        String[] strDate = s.split("\\.");
-//        int[] intDate = new int[3];
-//        for (int i = 0; i < 3; i++) {
-//            intDate[i] = Integer.parseInt(strDate[i]);
-//        }
-//        date = LocalDate.of(intDate[2], intDate[1], intDate[0]);
-//        System.out.println(date);
     }
-
 
     public static void getInputDataFromUser() {
         Scanner iScanner = new Scanner(System.in);
@@ -27,68 +19,108 @@ public class GetInputApplication {
                 "- номер телефона (только цифры),\n" +
                 "- пол (в формате 'f'/'m') : ");
         String[] inputData = iScanner.nextLine().split(" ");
-        if (!checkDataOnNumber(inputData)) return;
         try {
-            parseInputData(inputData);
-        }catch (Exception e){
-
+            checkDataOnNumber(inputData);
+        } catch (DataWrongNumberException e) {
+            System.out.println(e.getMessage());
         }
-
+        String[] output = null;
+        try {
+            output = parseInputData(inputData);
+        } catch (DataWrongNumberException | DataNameFormatException | DataDateFormatException |
+                 DataPhoneFormatException | DataWrongSexException e1) {
+            System.out.println(e1.getMessage());
+            return;
+        }
+        String filename = null;
+        try {
+            filename = saveDataToFile(output);
+        } catch (IOException e) {
+            System.out.println("Не удалось записать данные в файл! " + e.getMessage());
+        }
+        System.out.println("Данные успешно сохранены в файл " + filename);
     }
 
-    public static boolean checkDataOnNumber(String[] str) {
+    public static String saveDataToFile(String[] output) throws IOException {
+        File record = new File(output[0]);
+        try (FileWriter fw = new FileWriter(record, true)) {
+            for (int i = 0; i < output.length; i++) {
+                fw.append("<").append(output[i]).append(">");
+            }
+            fw.append("\n");
+        }
+        return record.getName();
+    }
+
+    public static boolean checkDataOnNumber(String[] str) throws DataWrongNumberException {
         if (str.length == 6) {
             return true;
         } else {
-            try {
-                throw new DataWrongNumberException(str.length);
-            } catch (DataWrongNumberException e) {
-                System.out.println(e.getMessage());
-            }
+            throw new DataWrongNumberException(str.length);
         }
-        return false;
     }
 
-    public static void parseInputData(String[] input) {
+    public static String[] parseInputData(String[] input)
+            throws DataNameFormatException, DataPhoneFormatException,
+            DataDateFormatException, DataWrongSexException {
         String[] data = new String[input.length];
         for (int i = 0; i < input.length; i++) {
             data[i] = input[i].trim();
         }
-        StringBuilder name = new StringBuilder();
-        LocalDate birthdate = null;
+        String name = "";
+        String birthDate = "-1";
         String phoneNumber = "-1";
-        char sex = '0';
+        String sex = "-1";
         for (String s : data) {
             if (s.contains(".")) {
-                birthdate = parseDate(s);
+                if (parseDate(s)) {
+                    birthDate = s;
+                }
             } else if (s.length() == 1) {
-                sex = parseSex(s);
+                if (parseSex(s)) {
+                    sex = s;
+                }
             } else if (Character.isDigit(s.charAt(0))) {
-                phoneNumber = s;
+                if (parsePhone(s)) {
+                    phoneNumber = s;
+                }
             } else {
-                name.append(s).append(" ");
+                if (parseName(s)) {
+                    name += s + " ";
+                }
             }
         }
-        System.out.println(name + " " + birthdate + " " + phoneNumber + " " + sex);
+        String[] nameArray = name.split(" ");
+        String[] outputData = new String[6];
+        outputData[0] = nameArray[0];
+        outputData[1] = nameArray[1];
+        outputData[2] = nameArray[2];
+        outputData[3] = birthDate;
+        outputData[4] = phoneNumber;
+        outputData[5] = sex;
+
+        return outputData;
     }
 
-//        public static int parsePhoneNumber (String s){
-//            int phoneNumber = -1;
-//            try {
-//                phoneNumber = Integer.parseInt(s);
-//            } catch (NumberFormatException e) {
-//                try {
-//                    System.out.println(e.getMessage());
-//                    throw new DataPhoneFormatException(s);
-//                } catch (DataPhoneFormatException ex) {
-//                    System.out.println(ex.getMessage());
-//                }
-//            }
-//            return phoneNumber;
-//        }
+    public static boolean parseName(String s) throws DataPhoneFormatException {
+        for (Character c : s.toCharArray()) {
+            if (!Character.isLetter(c)) {
+                throw new DataNameFormatException(s);
+            }
+        }
+        return true;
+    }
 
+    public static boolean parsePhone(String s) throws DataPhoneFormatException {
+        for (char c : s.toCharArray()) {
+            if (!Character.isDigit(c)) {
+                throw new DataPhoneFormatException(s);
+            }
+        }
+        return true;
+    }
 
-    public static LocalDate parseDate(String s) {
+    public static boolean parseDate(String s) throws DataDateFormatException {
         LocalDate date = null;
         try {
             String[] strDate = s.split("\\.");
@@ -98,29 +130,25 @@ public class GetInputApplication {
             }
             date = LocalDate.of(intDate[2], intDate[1], intDate[0]);
         } catch (Exception e) {
-            try {
-                throw new DataDateFormatException(s, e.getMessage());
-            } catch (DataDateFormatException ex) {
-                System.out.println(ex.getMessage());
-            }
+            throw new DataDateFormatException(s, e.getMessage());
         }
-        return date;
+        return true;
     }
 
-    public static Character parseSex(String s) {
+    public static boolean parseSex(String s) throws DataWrongSexException {
         char c = s.charAt(0);
-        if (c == 'f') {
-            return 'f';
-        } else if (c == 'm') {
-            return 'm';
+        if ((c == 'f') || (c == 'm')) {
+            return true;
         } else {
-            try {
-                throw new DataWrongSexException(c);
-            } catch (DataWrongSexException e) {
-                System.out.println(e.getMessage());
-            }
+            throw new DataWrongSexException(c);
         }
-        return null;
+    }
+}
+
+class DataNameFormatException extends RuntimeException {
+    public DataNameFormatException(String s) {
+        System.out.println("Некорректно введенo имя! Допускается ввод только " +
+                "букв. Введанные данные: " + s);
     }
 }
 
@@ -138,16 +166,16 @@ class DataWrongSexException extends RuntimeException {
     }
 }
 
-class DataWrongNumberException extends RuntimeException {
-    public DataWrongNumberException(int n) {
-        super("Вы ввели неверное количество данных: " +
-                "требуется ввести 6 полей, введено - " + n);
-    }
-}
-
 class DataDateFormatException extends RuntimeException {
     public DataDateFormatException(String s, String st) {
         super("Некорректно введена дата рождения! " + st + " Требуемый формат: dd.mm.yyyy, " +
                 "введенный формат: " + s);
+    }
+}
+
+class DataWrongNumberException extends RuntimeException {
+    public DataWrongNumberException(int n) {
+        super("Вы ввели неверное количество данных: " +
+                "требуется ввести 6 полей, введено - " + n);
     }
 }
